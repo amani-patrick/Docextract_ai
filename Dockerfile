@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Poppler for pdf2image
     poppler-utils \
     # Image processing libs
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
@@ -26,7 +27,8 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Pre-download PaddleOCR models (so they're baked into image)
-RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(use_angle_cls=True, lang='en', show_log=False)" || true
+RUN mkdir -p /root/.paddleocr && \
+    python -c "from paddleocr import PaddleOCR; PaddleOCR(use_angle_cls=True, lang='en', show_log=False)" || true
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
@@ -38,7 +40,6 @@ COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
 COPY --from=builder /usr/bin/tesseract /usr/bin/tesseract
 COPY --from=builder /usr/share/tesseract-ocr /usr/share/tesseract-ocr
 COPY --from=builder /usr/bin/pdftoppm /usr/bin/pdftoppm
-COPY --from=builder /usr/lib/libpoppler* /usr/lib/ 2>/dev/null || true
 
 # Copy Python packages
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
