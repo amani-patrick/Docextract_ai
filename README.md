@@ -24,8 +24,8 @@ Plus a fine-tuning API to teach it any custom document format in minutes.
 ### 1. Clone & install
 
 ```bash
-git clone https://github.com/yourname/docuextract-ai
-cd docuextract-ai
+git clone https://github.com/amani-patrick/Docextract_ai
+cd Docextract_ai
 
 # Install system dependencies (Ubuntu/Debian)
 sudo apt-get install tesseract-ocr poppler-utils
