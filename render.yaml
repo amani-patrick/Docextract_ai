@@ -1,0 +1,29 @@
+# Render.com deployment — DocuExtract AI
+# Deploy: connect GitHub repo → Render auto-detects this file
+
+services:
+  - type: web
+    name: docuextract-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+
+    envVars:
+      - key: ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: MAX_FILE_SIZE_MB
+        value: "50"
+
+    healthCheckPath: /health
+    autoDeploy: true
+
+    # Scale up during business hours (optional)
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetMemoryPercent: 80
+      targetCPUPercent: 70
