@@ -10,6 +10,7 @@ services:
       - ENV=development
       - LOG_LEVEL=info
       - MAX_FILE_SIZE_MB=50
+      # Add API Key for fine-tuning
     volumes:
       # Hot-reload in dev: mount source
       - ./app:/app/app
