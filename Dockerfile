@@ -64,3 +64,4 @@ CMD ["python", "-m", "uvicorn", "app.main:app", \
      "--port", "8000", \
      "--workers", "2", \
      "--timeout-keep-alive", "30"]
+     

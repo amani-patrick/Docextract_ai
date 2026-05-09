@@ -38,7 +38,10 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
         "date": [
             r"(?:invoice\s+)?date\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
             r"dated?\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+            # Month-name formats: "Feb 09 2012" or "09 Feb 2012"
+            r"((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{2,4})",
             r"(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{2,4})",
+            # Also search adjacent blocks: "Date:" block + next block value
         ],
         "due_date": [
             r"due\s+(?:date|by|on)\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
@@ -49,7 +52,8 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
             r"^([A-Z][A-Za-z0-9\s&\.,]{2,50})\s*\n.*invoice",
         ],
         "client_name": [
-            r"(?:to|bill\s*to|sold\s*to|customer)\s*[:\-]?\s*([A-Za-z0-9\s&\.,]+?)(?:\n|$)",
+            # Require word boundary so 'to' doesn't match mid-word
+            r"(?:^|\n)(?:bill\s+to|sold\s+to|customer)\s*[:\-]?\s*([A-Za-z][A-Za-z0-9\s&\.,]{2,40}?)(?:\n|$)",
         ],
         "subtotal": [
             r"sub\s*total\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
@@ -57,10 +61,18 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
         "tax": [
             r"(?:vat|tax|gst|hst)\s*(?:\d+%?)?\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
         ],
+        "shipping": [
+            r"(?:shipping|freight|delivery|postage)\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+        ],
+        "discount": [
+            r"(?:discount|promo|coupon)\s*[:\-]?\s*[-]?[$€£]?\s*([\d,]+\.?\d{0,2})",
+        ],
         "total": [
-            r"(?:grand\s+)?total\s+(?:due|amount)?\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
-            r"amount\s+(?:due|payable)\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
-            r"total\s*[:\-]\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            # Negative lookbehind: don't match if 'sub' precedes 'total'
+            r"(?<!sub)(?:grand\s+)?total\s+(?:due|amount)?\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:balance\s+due|amount\s+(?:due|payable))\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            # Search from end of text (total is always last)
+            # Use re.findall and take the LAST match:
         ],
         "currency": [
             r"(USD|EUR|GBP|RWF|KES|NGN|ZAR|AUD|CAD)",
@@ -201,7 +213,16 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
 
 # ── Auto-detection keywords ────────────────────────────────────────────────────
 DOC_TYPE_KEYWORDS: dict[str, list[str]] = {
-    "invoice": ["invoice", "bill to", "amount due", "remit payment", "inv #"],
+    "invoice": [
+        "invoice",         # core signal
+        "bill to",         # common
+        "amount due",      # variant 1
+        "balance due",     # variant 2 — was missing!
+        "remit payment",   # variant 3
+        "inv #",           # variant 4
+        "subtotal",        # structural
+        "ship to",         # structural
+    ],
     "receipt": ["receipt", "thank you for your purchase", "amount paid", "change"],
     "contract": ["agreement", "whereas", "hereinafter", "governing law", "terms and conditions", "signed by"],
     "id_card": ["date of birth", "nationality", "national id", "passport", "expires"],
@@ -216,20 +237,19 @@ def detect_document_type(text: str) -> tuple[str, float]:
     Returns (best_type, confidence_0_to_1).
     """
     text_lower = text.lower()
-    scores: dict[str, int] = {}
+    scores: dict[str, float] = {}
 
     for doc_type, keywords in DOC_TYPE_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in text_lower)
-        if score > 0:
-            scores[doc_type] = score
+        hits = sum(1 for kw in keywords if kw in text_lower)
+        if hits > 0:
+            # Diminishing penalty for missing optional keywords
+            scores[doc_type] = hits / (hits + max(0, len(keywords)//2 - hits))
 
     if not scores:
         return "form", 0.3  # fallback generic
 
     best = max(scores, key=lambda k: scores[k])
-    total_keywords = len(DOC_TYPE_KEYWORDS[best])
-    confidence = min(scores[best] / total_keywords, 1.0)
-    return best, round(confidence, 3)
+    return best, round(min(scores[best], 1.0), 3)
 
 
 def _load_custom_registry() -> dict[str, dict[str, list[str]]]:
@@ -276,6 +296,25 @@ def register_custom_type(
     return pattern_map
 
 
+def _spatial_extract_below(blocks: list, label_text: str, max_y_gap: int = 60) -> Optional[str]:
+    """Find block with text matching label, return text of block directly below it."""
+    label_block = next(
+        (b for b in blocks if label_text.lower() in b.text.lower()), None
+    )
+    if not label_block:
+        return None
+    label_bottom = label_block.bbox.y2
+    label_x = label_block.bbox.x1
+    candidates = [
+        b for b in blocks
+        if b.bbox.y1 > label_bottom
+        and b.bbox.y1 - label_bottom < max_y_gap
+        and abs(b.bbox.x1 - label_x) < 80  # roughly same column
+    ]
+    candidates.sort(key=lambda b: b.bbox.y1)
+    return candidates[0].text if candidates else None
+
+
 def extract_fields(
     blocks: list,
     doc_type: str,
@@ -287,7 +326,12 @@ def extract_fields(
     Returns:
         (fields_dict, detected_type, confidence)
     """
-    full_text = "\n".join(b.text for b in blocks)
+    # Build a "label: next_line_value" text that glues adjacent OCR blocks
+    adjacent_text = ""
+    for i, block in enumerate(blocks[:-1]):
+        next_block = blocks[i + 1]
+        adjacent_text += f"{block.text}: {next_block.text}\n"
+    full_text = "\n".join(b.text for b in blocks) + "\n" + adjacent_text
 
     # Auto-detect or use provided
     detected_type = doc_type
@@ -325,15 +369,27 @@ def extract_fields(
         value = None
         for pattern in patterns:
             try:
-                match = re.search(pattern, full_text, re.IGNORECASE | re.MULTILINE)
-                if match:
-                    value = match.group(1).strip()
-                    # Clean up common OCR artifacts
-                    value = re.sub(r'\s+', ' ', value).strip()
-                    break
+                if field == "total":
+                    matches = re.findall(pattern, full_text, re.IGNORECASE | re.MULTILINE)
+                    if matches:
+                        value = matches[-1].strip()  # take LAST match, not first
+                        value = re.sub(r'\s+', ' ', value).strip()
+                        break
+                else:
+                    match = re.search(pattern, full_text, re.IGNORECASE | re.MULTILINE)
+                    if match:
+                        value = match.group(1).strip()
+                        # Clean up common OCR artifacts
+                        value = re.sub(r'\s+', ' ', value).strip()
+                        break
             except (re.error, IndexError):
                 continue
         fields[field] = value
+
+    if not fields.get("client_name") or len(str(fields.get("client_name", ""))) < 3:
+        spatial = _spatial_extract_below(blocks, "Bill To")
+        if spatial:
+            fields["client_name"] = spatial
 
     logger.info(f"Extracted {sum(1 for v in fields.values() if v)} / {len(fields)} fields for '{detected_type}'")
     return fields, detected_type, confidence

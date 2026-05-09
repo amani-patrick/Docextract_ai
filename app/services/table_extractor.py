@@ -79,9 +79,19 @@ def _is_table_like(rows: list[list[TextBlock]], min_cols: int = 2, min_rows: int
     """Heuristic: a region is table-like if most rows have ≥ min_cols blocks."""
     if len(rows) < min_rows:
         return False
-    col_counts = [len(r) for r in rows]
-    avg_cols = sum(col_counts) / len(col_counts)
-    return avg_cols >= min_cols
+    # Use the max column count seen in any row (not avg — sub-label rows skew it)
+    max_cols = max(len(r) for r in rows)
+    return max_cols >= min_cols
+
+INVOICE_TABLE_HEADERS = {"item", "qty", "quantity", "description", "rate", "amount", "price"}
+
+def _find_table_header_row(rows: list[list[TextBlock]]) -> Optional[int]:
+    """Find table region by header row."""
+    for i, row in enumerate(rows):
+        texts = {b.text.lower().strip() for b in row}
+        if len(texts & INVOICE_TABLE_HEADERS) >= 2:
+            return i
+    return None
 
 
 def _avg_confidence(cells: list[TableCell]) -> float:
@@ -92,8 +102,8 @@ def _avg_confidence(cells: list[TableCell]) -> float:
 def extract_tables(
     blocks: list[TextBlock],
     page: Optional[int] = None,
-    row_tolerance: float = 12.0,
-    col_tolerance: float = 20.0,
+    row_tolerance: float = 18.0,
+    col_tolerance: float = 40.0,
     min_table_rows: int = 2,
     min_table_cols: int = 2,
 ) -> list[ExtractedTable]:
