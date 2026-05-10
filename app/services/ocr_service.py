@@ -5,12 +5,9 @@ Fallback engine: pytesseract (simpler scans, always available)
 PDF support: pdf2image → per-page images → OCR each page
 """
 
-import os
 import logging
 import time
-import tempfile
 from pathlib import Path
-from typing import Optional
 
 from PIL import Image
 import numpy as np
@@ -28,6 +25,7 @@ def _get_paddle():
     global _paddle_ocr
     if _paddle_ocr is None:
         try:
+            # pyrefly: ignore[import-not-found, missing-import]
             from paddleocr import PaddleOCR
             _paddle_ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
             logger.info("PaddleOCR engine loaded")
@@ -39,6 +37,7 @@ def _get_paddle():
 def _tesseract_available_check() -> bool:
     global _tesseract_available
     try:
+        # pyrefly: ignore [missing-import]
         import pytesseract
         pytesseract.get_tesseract_version()
         _tesseract_available = True
@@ -54,6 +53,7 @@ def pdf_to_images(pdf_path: str, dpi: int = 200) -> list[Image.Image]:
     Uses pdf2image (poppler). Falls back to PyMuPDF if poppler unavailable.
     """
     try:
+        # pyrefly: ignore [missing-import]
         from pdf2image import convert_from_path
         images = convert_from_path(pdf_path, dpi=dpi)
         logger.info(f"pdf2image: converted {len(images)} pages at {dpi}dpi")
@@ -61,6 +61,7 @@ def pdf_to_images(pdf_path: str, dpi: int = 200) -> list[Image.Image]:
     except Exception as e:
         logger.warning(f"pdf2image failed ({e}), trying PyMuPDF...")
         try:
+            # pyrefly: ignore [missing-import]
             import fitz  # PyMuPDF
             doc = fitz.open(pdf_path)
             images = []
@@ -115,6 +116,7 @@ def ocr_image_paddle(image: Image.Image, page_num: int = 1) -> list[TextBlock]:
 def ocr_image_tesseract(image: Image.Image, page_num: int = 1) -> list[TextBlock]:
     """Fallback: pytesseract OCR with bounding box data."""
     try:
+        # pyrefly: ignore [missing-import]
         import pytesseract
         data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
     except Exception as e:

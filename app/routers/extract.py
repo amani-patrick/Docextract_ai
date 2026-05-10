@@ -13,7 +13,10 @@ import logging
 import tempfile
 from pathlib import Path
 
+# pyrefly: ignore[missing-import]
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
+
+# pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
 
 from app.models.responses import ExtractionResult, DocumentType, ErrorResponse
