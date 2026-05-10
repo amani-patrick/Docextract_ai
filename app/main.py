@@ -3,14 +3,19 @@ DocuExtract AI — Production OCR Document Extraction API
 Handles invoices, receipts, forms, contracts, and custom document types.
 """
 
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Request
+# pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
+# pyrefly: ignore [missing-import]
 from fastapi.middleware.gzip import GZipMiddleware
+# pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
 import time
 import logging
 
 from app.routers import extract, health, finetune
+# pyrefly: ignore [missing-import]
 from app.models.responses import ErrorResponse
 
 # ── Logging ────────────────────────────────────────────────────────────────────

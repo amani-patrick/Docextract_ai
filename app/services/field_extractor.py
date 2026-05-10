@@ -32,50 +32,46 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
 
     "invoice": {
         "invoice_number": [
-            r"invoice\s*(?:no|number|#|num)\.?\s*[:\-]?\s*([A-Z0-9\-\/]+)",
-            r"inv\.?\s*#?\s*[:\-]?\s*([A-Z0-9\-\/]+)",
+            r"(?:invoice\s*(?:no|number|#|num)\.?|inv\.?\s*#?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,20})",
         ],
         "date": [
             r"(?:invoice\s+)?date\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+            r"(?:invoice\s+)?date\s*[:\-]?\s*(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})",
             r"dated?\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
-            # Month-name formats: "Feb 09 2012" or "09 Feb 2012"
+            r"dated?\s*[:\-]?\s*(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})",
             r"((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{2,4})",
             r"(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{2,4})",
-            # Also search adjacent blocks: "Date:" block + next block value
         ],
         "due_date": [
-            r"due\s+(?:date|by|on)\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
-            r"payment\s+due\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+            r"(?:due\s+(?:date|by|on)|payment\s+due)\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+            r"(?:due\s+(?:date|by|on)|payment\s+due)\s*[:\-]?\s*(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})",
+            r"(?:due\s+(?:date|by|on)|payment\s+due)\s*[:\-]?\s*((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{2,4})",
         ],
         "vendor_name": [
-            r"(?:from|vendor|seller|billed?\s+by)\s*[:\-]?\s*([A-Za-z0-9\s&\.,]+?)(?:\n|ltd|llc|inc|corp|co\.)",
-            r"^([A-Z][A-Za-z0-9\s&\.,]{2,50})\s*\n.*invoice",
+            r"(?:from|vendor|seller|billed?\s+by)\s*[:\-]?\s*([A-Za-z0-9\s&\.,]{3,50}?)(?:\n|ltd|llc|inc|corp|co\.|<|$)",
+            r"^([A-Z][A-Za-z0-9\s&\.,]{2,50})\s*\n.*(?:invoice|bill)",
         ],
         "client_name": [
-            # Require word boundary so 'to' doesn't match mid-word
             r"(?:^|\n)(?:bill\s+to|sold\s+to|customer)\s*[:\-]?\s*([A-Za-z][A-Za-z0-9\s&\.,]{2,40}?)(?:\n|$)",
         ],
         "subtotal": [
-            r"sub\s*total\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"sub\s*total\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "tax": [
-            r"(?:vat|tax|gst|hst)\s*(?:\d+%?)?\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:vat|tax|gst|hst)\s*(?:\d+%?)?\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "shipping": [
-            r"(?:shipping|freight|delivery|postage)\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:shipping|freight|delivery|postage)\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "discount": [
-            r"(?:discount|promo|coupon)\s*[:\-]?\s*[-]?[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:discount|promo|coupon)\s*[:\-]?\s*[-]?[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "total": [
-            # Negative lookbehind: don't match if 'sub' precedes 'total'
-            r"(?<!sub)(?:grand\s+)?total\s+(?:due|amount)?\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
-            r"(?:balance\s+due|amount\s+(?:due|payable))\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
-            # Search from end of text (total is always last)
-            # Use re.findall and take the LAST match:
+            r"(?<!sub)(?:grand\s+)?total\s+(?:due|amount)?\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
+            r"(?:balance\s+due|amount\s+(?:due|payable))\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "currency": [
-            r"(USD|EUR|GBP|RWF|KES|NGN|ZAR|AUD|CAD)",
+            r"\b(USD|EUR|GBP|RWF|KES|NGN|ZAR|AUD|CAD)\b",
             r"(\$|€|£|₦|KSh)",
         ],
         "payment_terms": [
@@ -83,8 +79,16 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
             r"(net\s*\d+|due\s+on\s+receipt|immediate)",
         ],
         "po_number": [
-            r"p\.?o\.?\s*(?:number|#|no)\.?\s*[:\-]?\s*([A-Z0-9\-]+)",
-            r"purchase\s+order\s*[:\-]?\s*([A-Z0-9\-]+)",
+            r"(?:p\.?o\.?\s*(?:number|#|no)\.?|purchase\s+order)\s*[:\-]?\s*([A-Z0-9\-]+)",
+        ],
+        "email": [
+            r"\b([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)\b",
+        ],
+        "phone": [
+            r"(?:tel|phone|ph\.?|mobile)\s*[:\-]?\s*(\+?[\d\s\-\(\)]{7,20})",
+        ],
+        "bank_details": [
+            r"(?:iban|account\s+no|acc\s+no|account)\s*[:\-]?\s*([A-Z0-9\s\-]{10,34})",
         ],
     },
 
@@ -94,16 +98,17 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
         ],
         "date": [
             r"(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+            r"(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})",
             r"(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{2,4})",
         ],
         "time": [
             r"(\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?)",
         ],
         "total": [
-            r"(?:total|amount\s+paid|grand\s+total)\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:total|amount\s+paid|grand\s+total)\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "tax": [
-            r"(?:tax|vat|gst)\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:tax|vat|gst)\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "payment_method": [
             r"(cash|credit\s*card|debit\s*card|visa|mastercard|amex|mobile\s*money|mpesa|mtn|airtel)",
@@ -135,7 +140,7 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
             r"(?:expir(?:y|es?|ation)|terminat(?:es?|ion))\s+(?:date\s*)?[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
         ],
         "contract_value": [
-            r"(?:consideration|contract\s+value|total\s+fee|compensation)\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:consideration|contract\s+value|total\s+fee|compensation)\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "governing_law": [
             r"govern(?:ed|ing)\s+(?:by\s+the\s+laws?\s+of|law)\s*[:\-]?\s*([A-Za-z\s]{3,50}?)(?:\.|,|\n)",
@@ -178,23 +183,23 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
             r"(?:statement\s+)?period\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}\s*(?:to|–|-)\s*\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
         ],
         "opening_balance": [
-            r"(?:opening|beginning)\s+balance\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:opening|beginning)\s+balance\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "closing_balance": [
-            r"(?:closing|ending)\s+balance\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:closing|ending)\s+balance\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "currency": [
-            r"(USD|EUR|GBP|RWF|KES|NGN|ZAR|AUD|CAD)",
+            r"\b(USD|EUR|GBP|RWF|KES|NGN|ZAR|AUD|CAD)\b",
         ],
     },
 
     "purchase_order": {
         "po_number": [
-            r"p\.?o\.?\s*(?:number|#|no)\.?\s*[:\-]?\s*([A-Z0-9\-\/]+)",
-            r"purchase\s+order\s*(?:number|#)?\s*[:\-]?\s*([A-Z0-9\-\/]+)",
+            r"(?:p\.?o\.?\s*(?:number|#|no)\.?|purchase\s+order\s*(?:number|#)?)\s*[:\-]?\s*([A-Z0-9\-\/]+)",
         ],
         "date": [
             r"(?:po\s+)?date\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+            r"(?:po\s+)?date\s*[:\-]?\s*(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})",
         ],
         "vendor": [
             r"(?:vendor|supplier|from)\s*[:\-]?\s*([A-Za-z0-9\s&\.,]{3,50}?)(?:\n|$)",
@@ -203,7 +208,7 @@ BUILTIN_TEMPLATES: dict[str, dict[str, list[str]]] = {
             r"(?:ship\s+to|deliver\s+to)\s*[:\-]?\s*([A-Za-z0-9\s\.,\-]{3,80}?)(?:\n|$)",
         ],
         "total": [
-            r"(?:total|order\s+total|amount)\s*[:\-]?\s*[$€£]?\s*([\d,]+\.?\d{0,2})",
+            r"(?:total|order\s+total|amount)\s*[:\-]?\s*[$€£]?\s*([\d,]+[\.,]\d{2})",
         ],
         "requested_by": [
             r"(?:requested|ordered)\s+by\s*[:\-]?\s*([A-Za-z\s]{3,40}?)(?:\n|$)",
@@ -296,6 +301,33 @@ def register_custom_type(
     return pattern_map
 
 
+def _spatial_extract_right(blocks: list, label_text: str, max_x_gap: int = 150) -> Optional[str]:
+    """Find block with text matching label, return text of block directly to its right."""
+    label_block = next(
+        (b for b in blocks if label_text.lower() in b.text.lower()), None
+    )
+    if not label_block:
+        return None
+        
+    text = label_block.text
+    idx = text.lower().find(label_text.lower())
+    if idx != -1:
+        remainder = text[idx + len(label_text):].strip(" :\n\t-")
+        if len(remainder) > 1:
+            return remainder
+
+    label_right = label_block.bbox.x2
+    label_y = label_block.bbox.y1
+    candidates = [
+        b for b in blocks
+        if b.bbox.x1 > label_right - 10
+        and b.bbox.x1 - label_right < max_x_gap
+        and abs(b.bbox.y1 - label_y) < 25  # roughly same row
+    ]
+    candidates.sort(key=lambda b: b.bbox.x1)
+    return candidates[0].text if candidates else None
+
+
 def _spatial_extract_below(blocks: list, label_text: str, max_y_gap: int = 60) -> Optional[str]:
     """Find block with text matching label, return text of block directly below it."""
     label_block = next(
@@ -303,11 +335,19 @@ def _spatial_extract_below(blocks: list, label_text: str, max_y_gap: int = 60) -
     )
     if not label_block:
         return None
+        
+    text = label_block.text
+    idx = text.lower().find(label_text.lower())
+    if idx != -1:
+        remainder = text[idx + len(label_text):].strip(" :\n\t-")
+        if len(remainder) > 1:
+            return remainder
+            
     label_bottom = label_block.bbox.y2
     label_x = label_block.bbox.x1
     candidates = [
         b for b in blocks
-        if b.bbox.y1 > label_bottom
+        if b.bbox.y1 > label_bottom - 10
         and b.bbox.y1 - label_bottom < max_y_gap
         and abs(b.bbox.x1 - label_x) < 80  # roughly same column
     ]
@@ -386,10 +426,28 @@ def extract_fields(
                 continue
         fields[field] = value
 
-    if not fields.get("client_name") or len(str(fields.get("client_name", ""))) < 3:
-        spatial = _spatial_extract_below(blocks, "Bill To")
-        if spatial:
-            fields["client_name"] = spatial
+    # Robust spatial fallbacks for critical missing fields
+    fallbacks = {
+        "client_name": ["Bill To", "Sold To", "Customer"],
+        "vendor_name": ["Vendor", "From", "Billed By"],
+        "date": ["Date", "Invoice Date"],
+        "invoice_number": ["Invoice No", "Invoice #", "Invoice Number"],
+        "total": ["Total", "Amount Due", "Grand Total", "Balance Due"],
+        "subtotal": ["Subtotal", "Sub Total"],
+        "tax": ["Tax", "VAT", "GST"],
+    }
+    
+    for field, labels in fallbacks.items():
+        if not fields.get(field) or len(str(fields.get(field, ""))) < 2:
+            for label in labels:
+                spatial = _spatial_extract_right(blocks, label)
+                if spatial:
+                    fields[field] = spatial
+                    break
+                spatial = _spatial_extract_below(blocks, label)
+                if spatial:
+                    fields[field] = spatial
+                    break
 
     logger.info(f"Extracted {sum(1 for v in fields.values() if v)} / {len(fields)} fields for '{detected_type}'")
     return fields, detected_type, confidence
